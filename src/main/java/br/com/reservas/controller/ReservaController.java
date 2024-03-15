@@ -35,8 +35,13 @@ public class ReservaController {
 
     @PostMapping
     public ResponseEntity createReserva(@RequestBody Reserva reserva) {
-        Reserva created = reservaService.createReserva(reserva);
-        return created != null ? ResponseEntity.created(URI.create(created.getId().toString())).body(created) : ResponseEntity.internalServerError().build();
+        try {
+            Reserva created = reservaService.createReserva(reserva);
+            return created != null ? ResponseEntity.created(URI.create(created.getId().toString())).body(created) : ResponseEntity.internalServerError().build();
+        }
+        catch (Exception ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
     }
 
     @PutMapping("/{id}")

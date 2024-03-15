@@ -47,6 +47,12 @@ public class ReservaServiceImpl implements ReservaService {
     @Value("${url.ms.clientes}")
     private String urlClientes;
 
+    @Value("${url.servicos}")
+    private String urlServicos;
+
+    @Value("${url.itens}")
+    private String urlItens;
+
     @Override
     public List<Reserva> getAll() {
         return reservaRepository.findAll();
@@ -63,7 +69,7 @@ public class ReservaServiceImpl implements ReservaService {
     }
 
     @Override
-    public Reserva createReserva(Reserva reserva) {
+    public Reserva createReserva(Reserva reserva) throws Exception {
         reserva.setValorDiaria(getDiariaQuarto(reserva.getQuartoId()).setScale(2, RoundingMode.CEILING));
         reserva.setValorTotal(calcularValorFinal(reserva).setScale(2, RoundingMode.CEILING));
 
@@ -74,7 +80,7 @@ public class ReservaServiceImpl implements ReservaService {
             emailService.sendMail(cliente.getEmail(), "Sua reserva foi efetuada com sucesso.", gerarMensagemReserva(cliente.getNome(), efetuarReserva));
             return efetuarReserva;
         }
-        return null;
+        else throw new Exception("Datas não disponíveis para reserva.");
     }
 
     private String gerarMensagemReserva(String nome, Reserva reserva) {
@@ -124,13 +130,7 @@ public class ReservaServiceImpl implements ReservaService {
     private BigDecimal calcularValorFinal(Reserva reserva) {
         Long diarias = ChronoUnit.DAYS.between(reserva.getDataInicio(), reserva.getDataFim());
         Double valorDiarias = reserva.getValorDiaria().doubleValue() * diarias;
-        Double valorAdicionais = 0D;
-        for (Item item : reserva.getItens()) {
-            valorAdicionais += item.getValorFinal().doubleValue();
-        }
-        for (Servico servico : reserva.getServicos()) {
-            valorAdicionais += servico.getValorFinal().doubleValue();
-        }
+        Double valorAdicionais = calculaValorAdicionais(reserva);
 
         return BigDecimal.valueOf(valorDiarias + valorAdicionais);
     }
@@ -158,4 +158,57 @@ public class ReservaServiceImpl implements ReservaService {
     private BigDecimal getDiariaQuarto(Integer id) {
         return quartoService.getDiariaQuarto(id);
     }
+
+    private Double calculaValorAdicionais(Reserva reserva) {
+        Double valorTotal = 0D;
+
+        List<Item> itens = reserva.getItens();
+        List<Servico> servicos = reserva.getServicos();
+
+        for(Item item : itens) {
+            Double valorUnitario = buscarValorUnitarioItem(item);
+            valorTotal += (valorUnitario * item.getQuantidade());
+        }
+        for(Servico servico : servicos) {
+            Double valorUnitario = buscarValorUnitarioServico(servico);
+            valorTotal += (valorUnitario * servico.getQuantidade());
+        }
+        return valorTotal;
+    }
+
+    private Double buscarValorUnitarioServico(Servico servico) {
+        ResponseEntity<String> response = restTemplate.getForEntity(
+                urlServicos + servico.getServicoId(),
+                String.class);
+        if(response.getStatusCode() == HttpStatus.NOT_FOUND) {
+            return 0D;
+        }
+        try {
+            JsonNode json = objectMapper.readTree(response.getBody());
+            Double valorUnitario = json.get("valorUnitario").asDouble();
+            return valorUnitario;
+        }
+        catch (IOException ex) {
+            return 0D;
+        }
+    }
+
+    private Double buscarValorUnitarioItem(Item item) {
+        ResponseEntity<String> response = restTemplate.getForEntity(
+                urlItens + item.getItemId(),
+                String.class);
+        if(response.getStatusCode() == HttpStatus.NOT_FOUND) {
+            return 0D;
+        }
+        try {
+            JsonNode json = objectMapper.readTree(response.getBody());
+            Double valorUnitario = json.get("valorUnitario").asDouble();
+            return valorUnitario;
+        }
+        catch (IOException ex) {
+            return 0D;
+        }
+    }
+
+
 }
