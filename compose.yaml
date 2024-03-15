@@ -1,9 +1,28 @@
+version: '3.8'
+
 services:
-  postgres:
-    image: 'postgres:latest'
-    environment:
-      - 'POSTGRES_DB=reservadatabase'
-      - 'POSTGRES_PASSWORD=secret'
-      - 'POSTGRES_USER=user'
+  spring-boot-app:
+    image: openjdk:17-jdk-alpine
+    volumes:
+      - ./target:/app
     ports:
-      - '5436:5432'
+      - "8100:8080"
+    expose:
+      - "8100"
+    command: ["java", "-jar", "/app/MS-Reservas-0.0.1-SNAPSHOT.jar"]
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/reservadatabase
+      - SPRING_DATASOURCE_USERNAME=user
+      - SPRING_DATASOURCE_PASSWORD=secret
+    depends_on:
+      - postgres
+
+  postgres:
+    image: postgres:latest
+    restart: always
+    ports:
+      - "5436:5432"
+    environment:
+      POSTGRES_DB: reservadatabase
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: secret
